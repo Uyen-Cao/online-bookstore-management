@@ -7,6 +7,8 @@ const errorController = require("./controllers/error");
 const sequelize = require("./util/database");
 const Product = require("./models/product");
 const User = require("./models/user");
+const Cart = require("./models/cart");
+const CartItem = require("./models/cart-item");
 
 const app = express();
 
@@ -19,6 +21,15 @@ const shopRoutes = require("./routes/shop");
 app.use(bodyParser.urlencoded());
 app.use(express.static(path.join(__dirname, "public")));
 
+app.use((req, res, next) => {
+  User.findByPk(1)
+    .then((user) => {
+      req.user = user;
+      next();
+    })
+    .catch((error) => console.log(error));
+});
+
 app.use("/admin", adminRoutes);
 app.use(shopRoutes);
 
@@ -27,6 +38,12 @@ app.use(errorController.get404);
 //ASSOCIATIONS
 Product.belongsTo(User, { constraints: true, onDelete: "CASCADE" });
 User.hasMany(Product);
+
+User.hasOne(Cart);
+Cart.belongsTo(User);
+
+Cart.belongsToMany(Product, { through: CartItem });
+Product.belongsTo(Cart, { through: CartItem });
 
 //look at model -> create tables for them
 sequelize
@@ -42,7 +59,17 @@ sequelize
     return user;
   })
   .then((user) => {
-    console.log(user);
+    user
+      .getCart()
+      .then((cart) => {
+        if (!cart) {
+          return user.createCart();
+        }
+        return cart;
+      })
+      .catch((error) => console.log(error));
+  })
+  .then((cart) => {
     app.listen(3000);
   })
   .catch((err) => console.log(err));
